@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4004 Instruction Reference</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#map">Skip to the opcode map</a>
+
+<h1>4004 Instruction Reference</h1>
+
+<p>This page lists every instruction the Intel 4004 understands, 46 in
+all. It starts with tables you can scan quickly, then gives each
+instruction its own section with the details. Use your screen reader's
+heading key to jump between instructions. Each instruction section is a
+level 3 heading that starts with the mnemonic, so you can also use your
+find command to search for a name such as <code>ISZ:</code>.</p>
+
+<p>Contents</p>
+<ul>
+<li><a href="#notation">How to read this page</a></li>
+<li><a href="#map">Opcode map: what the first hex digit means</a></li>
+<li><a href="#summary">Summary tables</a></li>
+<li><a href="#index-group">Details: register and jump instructions</a></li>
+<li><a href="#io-group">Details: RAM and port instructions</a></li>
+<li><a href="#acc-group">Details: accumulator instructions</a></li>
+<li><a href="#pseudo">Extras this assembler understands</a></li>
+</ul>
+
+<h2 id="notation">How to Read This Page</h2>
+
+<p>These short names are used throughout:</p>
+<ul>
+<li><strong>A</strong> is the accumulator. <strong>C</strong> is the
+carry bit.</li>
+<li><strong>Rr</strong> is one of the 16 registers, R0 to R15. In the
+bytes, r is its number as one hex digit, 0 to F.</li>
+<li><strong>Pp</strong> is one of the 8 register pairs, P0 to P7. Pair p
+is made of registers 2p and 2p plus 1. For example, P3 is R6 and
+R7.</li>
+<li><strong>d</strong> is a 4-bit value, 0 to 15, written into the
+instruction itself.</li>
+<li><strong>The selected RAM character</strong> means the one chosen by
+the last <code>SRC</code> and <code>DCL</code>. <strong>The selected
+port</strong> means the port chosen by the last <code>SRC</code>.</li>
+<li><strong>Cycles</strong> are instruction cycles. One cycle is 8 clock
+ticks, which is 10.8 millionths of a second on a 740 kilohertz
+4004.</li>
+</ul>
+
+<p>A two-byte instruction is shown as two bytes separated by a space,
+such as <code>4a aa</code>. In that example, the first byte starts with
+4, its low nibble holds part of the address, and the whole second byte
+holds the rest.</p>
+
+<h2 id="map">Opcode Map: What the First Hex Digit Means</h2>
+
+<p>The high nibble of an instruction's first byte, its first hex digit,
+tells you which instruction it is. When you read a listing or a memory
+dump, this table is all you need to decode a byte. Only the E and F rows
+use the low digit to pick between many instructions.</p>
+
+<table>
+<caption>Opcode map by first hex digit</caption>
+<thead>
+<tr><th scope="col">First digit</th><th scope="col">Instruction</th>
+<th scope="col">What the second digit means</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>NOP</td><td>Always 0. Byte 00 is NOP.</td></tr>
+<tr><td>1</td><td>JCN</td><td>The condition. A second byte
+follows.</td></tr>
+<tr><td>2</td><td>FIM or SRC</td><td>Even digit: FIM to pair digit
+divided by 2, and a second byte follows. Odd digit: SRC of pair digit
+divided by 2.</td></tr>
+<tr><td>3</td><td>FIN or JIN</td><td>Even digit: FIN. Odd digit: JIN.
+The pair number is the digit divided by 2.</td></tr>
+<tr><td>4</td><td>JUN</td><td>The top 4 bits of the 12-bit address. A
+second byte follows.</td></tr>
+<tr><td>5</td><td>JMS</td><td>The top 4 bits of the 12-bit address. A
+second byte follows.</td></tr>
+<tr><td>6</td><td>INC</td><td>The register number.</td></tr>
+<tr><td>7</td><td>ISZ</td><td>The register number. A second byte
+follows.</td></tr>
+<tr><td>8</td><td>ADD</td><td>The register number.</td></tr>
+<tr><td>9</td><td>SUB</td><td>The register number.</td></tr>
+<tr><td>A</td><td>LD</td><td>The register number.</td></tr>
+<tr><td>B</td><td>XCH</td><td>The register number.</td></tr>
+<tr><td>C</td><td>BBL</td><td>The value loaded into A.</td></tr>
+<tr><td>D</td><td>LDM</td><td>The value loaded into A.</td></tr>
+<tr><td>E</td><td>RAM and port group</td><td>Picks one of 16 RAM and
+port instructions.</td></tr>
+<tr><td>F</td><td>Accumulator group</td><td>Picks one of 14
+accumulator instructions. FE and FF are unused.</td></tr>
+</tbody>
+</table>
+
+<h2 id="summary">Summary Tables</h2>
+
+<h3 id="sum-index">Register and jump instructions</h3>
+
+<table>
+<caption>Register and jump instructions</caption>
+<thead>
+<tr><th scope="col">Mnemonic</th><th scope="col">Bytes</th>
+<th scope="col">Cycles</th><th scope="col">Carry</th>
+<th scope="col">What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#NOP">NOP</a></td><td>00</td><td>1</td><td>No</td>
+<td>Nothing.</td></tr>
+<tr><td><a href="#JCN">JCN c, addr</a></td><td>1c aa</td><td>2</td>
+<td>No</td><td>Jump within the page if condition c is true.</td></tr>
+<tr><td><a href="#FIM">FIM Pp, data</a></td><td>2(2p) dd</td><td>2</td>
+<td>No</td><td>Load a byte into a register pair.</td></tr>
+<tr><td><a href="#SRC">SRC Pp</a></td><td>2(2p+1)</td><td>1</td>
+<td>No</td><td>Select a RAM character and port using a pair.</td></tr>
+<tr><td><a href="#FIN">FIN Pp</a></td><td>3(2p)</td><td>2</td><td>No</td>
+<td>Load the ROM byte that P0 points at into a pair.</td></tr>
+<tr><td><a href="#JIN">JIN Pp</a></td><td>3(2p+1)</td><td>1</td>
+<td>No</td><td>Jump within the page to the address in a pair.</td></tr>
+<tr><td><a href="#JUN">JUN addr</a></td><td>4a aa</td><td>2</td>
+<td>No</td><td>Jump anywhere.</td></tr>
+<tr><td><a href="#JMS">JMS addr</a></td><td>5a aa</td><td>2</td>
+<td>No</td><td>Call a subroutine anywhere.</td></tr>
+<tr><td><a href="#INC">INC Rr</a></td><td>6r</td><td>1</td><td>No</td>
+<td>Add 1 to a register.</td></tr>
+<tr><td><a href="#ISZ">ISZ Rr, addr</a></td><td>7r aa</td><td>2</td>
+<td>No</td><td>Add 1 to a register, and jump within the page unless it
+became 0.</td></tr>
+<tr><td><a href="#ADD">ADD Rr</a></td><td>8r</td><td>1</td><td>Yes</td>
+<td>A becomes A plus Rr plus C.</td></tr>
+<tr><td><a href="#SUB">SUB Rr</a></td><td>9r</td><td>1</td><td>Yes</td>
+<td>A becomes A minus Rr minus the borrow.</td></tr>
+<tr><td><a href="#LD">LD Rr</a></td><td>Ar</td><td>1</td><td>No</td>
+<td>Copy a register into A.</td></tr>
+<tr><td><a href="#XCH">XCH Rr</a></td><td>Br</td><td>1</td><td>No</td>
+<td>Swap A and a register.</td></tr>
+<tr><td><a href="#BBL">BBL d</a></td><td>Cd</td><td>1</td><td>No</td>
+<td>Return from a subroutine, and load d into A.</td></tr>
+<tr><td><a href="#LDM">LDM d</a></td><td>Dd</td><td>1</td><td>No</td>
+<td>Load d into A.</td></tr>
+</tbody>
+</table>
+
+<h3 id="sum-io">RAM and port instructions</h3>
+
+<p>All of these take 1 cycle and are one byte long. They use the RAM
+character or port chosen by the last <code>SRC</code>, in the bank chosen
+by the last <code>DCL</code>.</p>
+
+<table>
+<caption>RAM and port instructions</caption>
+<thead>
+<tr><th scope="col">Mnemonic</th><th scope="col">Byte</th>
+<th scope="col">Carry</th><th scope="col">What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#WRM">WRM</a></td><td>E0</td><td>No</td>
+<td>Write A to the selected RAM character.</td></tr>
+<tr><td><a href="#WMP">WMP</a></td><td>E1</td><td>No</td>
+<td>Write A to the selected RAM chip's output port.</td></tr>
+<tr><td><a href="#WRR">WRR</a></td><td>E2</td><td>No</td>
+<td>Write A to the selected ROM port.</td></tr>
+<tr><td><a href="#WPM">WPM</a></td><td>E3</td><td>No</td>
+<td>Write program RAM. Ignored by this emulator.</td></tr>
+<tr><td><a href="#WRn">WR0 to WR3</a></td><td>E4 to E7</td><td>No</td>
+<td>Write A to status character 0, 1, 2 or 3.</td></tr>
+<tr><td><a href="#SBM">SBM</a></td><td>E8</td><td>Yes</td>
+<td>A becomes A minus the RAM character minus the borrow.</td></tr>
+<tr><td><a href="#RDM">RDM</a></td><td>E9</td><td>No</td>
+<td>Read the selected RAM character into A.</td></tr>
+<tr><td><a href="#RDR">RDR</a></td><td>EA</td><td>No</td>
+<td>Read the selected ROM port into A.</td></tr>
+<tr><td><a href="#ADM">ADM</a></td><td>EB</td><td>Yes</td>
+<td>A becomes A plus the RAM character plus C.</td></tr>
+<tr><td><a href="#RDn">RD0 to RD3</a></td><td>EC to EF</td><td>No</td>
+<td>Read status character 0, 1, 2 or 3 into A.</td></tr>
+</tbody>
+</table>
+
+<h3 id="sum-acc">Accumulator instructions</h3>
+
+<p>All of these take 1 cycle and are one byte long. None of them has an
+operand. They work on A and C.</p>
+
+<table>
+<caption>Accumulator instructions</caption>
+<thead>
+<tr><th scope="col">Mnemonic</th><th scope="col">Byte</th>
+<th scope="col">Carry</th><th scope="col">What it does</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#CLB">CLB</a></td><td>F0</td><td>Cleared</td>
+<td>Set A and C to 0.</td></tr>
+<tr><td><a href="#CLC">CLC</a></td><td>F1</td><td>Cleared</td>
+<td>Set C to 0.</td></tr>
+<tr><td><a href="#IAC">IAC</a></td><td>F2</td><td>Yes</td>
+<td>Add 1 to A.</td></tr>
+<tr><td><a href="#CMC">CMC</a></td><td>F3</td><td>Flipped</td>
+<td>Flip C.</td></tr>
+<tr><td><a href="#CMA">CMA</a></td><td>F4</td><td>No</td>
+<td>Flip every bit of A.</td></tr>
+<tr><td><a href="#RAL">RAL</a></td><td>F5</td><td>Yes</td>
+<td>Rotate A left through C.</td></tr>
+<tr><td><a href="#RAR">RAR</a></td><td>F6</td><td>Yes</td>
+<td>Rotate A right through C.</td></tr>
+<tr><td><a href="#TCC">TCC</a></td><td>F7</td><td>Cleared</td>
+<td>Copy C into A, then clear C.</td></tr>
+<tr><td><a href="#DAC">DAC</a></td><td>F8</td><td>Yes</td>
+<td>Subtract 1 from A.</td></tr>
+<tr><td><a href="#TCS">TCS</a></td><td>F9</td><td>Cleared</td>
+<td>A becomes 10 if C is 1, or 9 if C is 0. Then clear C.</td></tr>
+<tr><td><a href="#STC">STC</a></td><td>FA</td><td>Set</td>
+<td>Set C to 1.</td></tr>
+<tr><td><a href="#DAA">DAA</a></td><td>FB</td><td>Set only</td>
+<td>Decimal adjust A after an addition.</td></tr>
+<tr><td><a href="#KBP">KBP</a></td><td>FC</td><td>No</td>
+<td>Turn a one-key bit pattern into a key number.</td></tr>
+<tr><td><a href="#DCL">DCL</a></td><td>FD</td><td>No</td>
+<td>Select the RAM bank given by A.</td></tr>
+</tbody>
+</table>
+
+<h2 id="index-group">Details: Register and Jump Instructions</h2>
+
+<h3 id="NOP">NOP: No Operation</h3>
+<p>Syntax: <code>NOP</code>. Byte: 00. Cycles: 1. Carry: not
+changed.</p>
+<p>Does nothing, and moves on to the next instruction. It is useful for
+wasting a little time or for leaving room to patch a program later.</p>
+
+<h3 id="JCN">JCN: Jump Conditional</h3>
+<p>Syntax: <code>JCN condition, address</code>. Bytes: 1c aa, where c is
+the condition and aa is the low 8 bits of the address. Cycles: 2. Carry:
+not changed.</p>
+<p>Tests a condition, and jumps if it is true. The condition is a 4-bit
+number made by adding together the tests you want:</p>
+
+<table>
+<caption>JCN condition bits</caption>
+<thead>
+<tr><th scope="col">Bit value</th><th scope="col">Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>True if the TEST input pin is 0.</td></tr>
+<tr><td>2</td><td>True if C is 1.</td></tr>
+<tr><td>4</td><td>True if A is 0.</td></tr>
+<tr><td>8</td><td>Turn the whole result around, so jump when the tests
+are false.</td></tr>
+</tbody>
+</table>
+
+<p>If more than one of the bits for 1, 2 and 4 is set, the jump happens
+when any one of them is true. Adding 8 then reverses that, so the jump
+happens only when all of them are false. Condition 0 never jumps, and
+condition 8 always jumps.</p>
+
+<p>This assembler also accepts names for the common conditions:</p>
+<table>
+<caption>JCN condition names</caption>
+<thead>
+<tr><th scope="col">Name</th><th scope="col">Value</th>
+<th scope="col">Jumps when</th></tr>
+</thead>
+<tbody>
+<tr><td>TZ or T0</td><td>1</td><td>The TEST pin is 0</td></tr>
+<tr><td>TN or T1</td><td>9</td><td>The TEST pin is 1</td></tr>
+<tr><td>C1, CY or C</td><td>2</td><td>C is 1</td></tr>
+<tr><td>C0 or NC</td><td>10</td><td>C is 0</td></tr>
+<tr><td>AZ or Z</td><td>4</td><td>A is 0</td></tr>
+<tr><td>AN or NZ</td><td>12</td><td>A is not 0</td></tr>
+</tbody>
+</table>
+
+<p>The address is only 8 bits, so the jump stays in the current
+256-byte ROM page. The page is the one holding the instruction
+<em>after</em> the JCN. If a JCN sits in the last two bytes of a page,
+it jumps into the next page. The assembler reports an error if the
+target is in a different page.</p>
+<p>Example: <code>JCN AN, loop</code> jumps to <code>loop</code> if A is
+not 0.</p>
+
+<h3 id="FIM">FIM: Fetch Immediate</h3>
+<p>Syntax: <code>FIM Pp, data</code>. Bytes: 2(2p) dd, so 20 for P0, 22
+for P1, and so on up to 2E for P7, followed by the data byte. Cycles: 2.
+Carry: not changed.</p>
+<p>Loads an 8-bit value into a register pair. The high nibble goes into
+the even register and the low nibble goes into the odd one.</p>
+<p>Example: <code>FIM P2, 0x3C</code> sets R4 to 3 and R5 to 12.</p>
+
+<h3 id="SRC">SRC: Send Register Control</h3>
+<p>Syntax: <code>SRC Pp</code>. Byte: 2(2p+1), so 21 for P0, 23 for P1,
+up to 2F for P7. Cycles: 1. Carry: not changed.</p>
+<p>Sends the byte in a register pair to the RAM and ROM chips as an
+address. Every following RAM and port instruction uses it, until the
+next SRC. For RAM, the top 2 bits pick the chip, the next 2 bits pick
+the RAM register, and the low 4 bits pick the character. For ROM ports,
+the high nibble picks the port.</p>
+<p>Example: with P1 holding hex 35, <code>SRC P1</code> selects RAM chip
+0, register 3, character 5, and ROM port 3.</p>
+
+<h3 id="FIN">FIN: Fetch Indirect</h3>
+<p>Syntax: <code>FIN Pp</code>. Byte: 3(2p), so 30, 32, up to 3E.
+Cycles: 2. Carry: not changed.</p>
+<p>Reads a byte from ROM and loads it into pair Pp. The address always
+comes from pair P0. It is an 8-bit address within the current page, the
+page that holds the next instruction. This is how a 4004 program reads
+tables and text stored in ROM.</p>
+<p>Example: with P0 holding hex 40, <code>FIN P3</code> reads the ROM
+byte at hex 040 (if the FIN is in page 0) into R6 and R7.</p>
+
+<h3 id="JIN">JIN: Jump Indirect</h3>
+<p>Syntax: <code>JIN Pp</code>. Byte: 3(2p+1), so 31, 33, up to 3F.
+Cycles: 1. Carry: not changed.</p>
+<p>Jumps to the 8-bit address held in a register pair, within the
+current page. Programs use it to jump to one of several places worked
+out at run time, such as a menu of key handlers.</p>
+<p>Example: with P1 holding hex 20, <code>JIN P1</code> jumps to hex 020
+(if the JIN is in page 0).</p>
+
+<h3 id="JUN">JUN: Jump Unconditional</h3>
+<p>Syntax: <code>JUN address</code>. Bytes: 4a aa, where the three hex
+digits a, a and a are the 12-bit address. Cycles: 2. Carry: not
+changed.</p>
+<p>Always jumps, and can reach any address in ROM.</p>
+<p>Example: <code>JUN 0x123</code> assembles to 41 23. The idiom
+<code>done: JUN done</code> loops forever, which the emulator treats as
+a halt.</p>
+
+<h3 id="JMS">JMS: Jump to Subroutine</h3>
+<p>Syntax: <code>JMS address</code>. Bytes: 5a aa. Cycles: 2. Carry:
+not changed.</p>
+<p>Saves the address of the next instruction on the chip's stack, then
+jumps to the subroutine. <a href="#BBL">BBL</a> returns. The stack only
+holds 3 return addresses. A fourth nested JMS overwrites the oldest one,
+so the outermost return will go to the wrong place.</p>
+<p>Example: <code>JMS load8</code> calls the subroutine at the label
+<code>load8</code>.</p>
+
+<h3 id="INC">INC: Increment Register</h3>
+<p>Syntax: <code>INC Rr</code>. Byte: 6r. Cycles: 1. Carry: not
+changed.</p>
+<p>Adds 1 to a register. 15 wraps round to 0. The carry is not touched,
+which makes INC safe to use in the middle of a multi-digit
+addition.</p>
+<p>Example: <code>INC R3</code> is byte 63.</p>
+
+<h3 id="ISZ">ISZ: Increment and Skip if Zero</h3>
+<p>Syntax: <code>ISZ Rr, address</code>. Bytes: 7r aa. Cycles: 2.
+Carry: not changed.</p>
+<p>Adds 1 to a register. If the result is not 0, it jumps to the
+address, within the current page. If the result is 0, it goes on to the
+next instruction. It is the 4004's loop counter. To repeat a loop n
+times, set the register to 16 minus n first.</p>
+<p>Example: with R6 set to 8, <code>loop: ... ISZ R6, loop</code> runs
+the loop 8 times.</p>
+
+<h3 id="ADD">ADD: Add Register</h3>
+<p>Syntax: <code>ADD Rr</code>. Byte: 8r. Cycles: 1. Carry: set if the
+sum is more than 15, otherwise cleared.</p>
+<p>A becomes A plus Rr plus C. Because the carry is added in, a chain of
+ADD instructions can add numbers longer than 4 bits. Use
+<a href="#CLC">CLC</a> before the first one.</p>
+<p>Example: with A at 9, R2 at 8 and C at 0, <code>ADD R2</code> leaves
+A at 1 and C at 1, meaning 17.</p>
+
+<h3 id="SUB">SUB: Subtract Register</h3>
+<p>Syntax: <code>SUB Rr</code>. Byte: 9r. Cycles: 1. Carry: set if
+there was no borrow, cleared if there was a borrow.</p>
+<p>A becomes A minus Rr minus the borrow. The 4004 does this by adding
+the complement of Rr and the complement of C. That means the carry works
+backwards for subtraction. C at 0 means no borrow in, and C at 1 after
+the SUB means no borrow out. Use <a href="#CLC">CLC</a> before the first
+SUB. Between the digits of a longer subtraction, use
+<a href="#CMC">CMC</a> to turn the borrow-out into the borrow-in the next
+SUB expects.</p>
+<p>Example: with A at 3, R0 at 5 and C at 0, <code>SUB R0</code> leaves
+A at 14 and C at 0. In 4 bits, 14 is minus 2, and C at 0 means there
+was a borrow.</p>
+
+<h3 id="LD">LD: Load Register into Accumulator</h3>
+<p>Syntax: <code>LD Rr</code>. Byte: Ar. Cycles: 1. Carry: not
+changed.</p>
+<p>Copies a register into A. The register keeps its value.</p>
+<p>Example: <code>LD R4</code> is byte A4.</p>
+
+<h3 id="XCH">XCH: Exchange Register and Accumulator</h3>
+<p>Syntax: <code>XCH Rr</code>. Byte: Br. Cycles: 1. Carry: not
+changed.</p>
+<p>Swaps A and a register. There is no instruction that stores A in a
+register without swapping, so XCH is also how you save A. The pair
+<code>LDM d</code> then <code>XCH Rr</code> is the usual way to put a
+value in a register.</p>
+<p>Example: <code>LDM 8</code> then <code>XCH R6</code> sets R6 to
+8.</p>
+
+<h3 id="BBL">BBL: Branch Back and Load</h3>
+<p>Syntax: <code>BBL d</code>. Byte: Cd. Cycles: 1. Carry: not
+changed.</p>
+<p>Returns from a subroutine, to the address saved by the last
+<a href="#JMS">JMS</a>, and loads d into A. Subroutines often use d to
+report a result, such as 0 for success.</p>
+<p>Example: <code>BBL 0</code> is byte C0.</p>
+
+<h3 id="LDM">LDM: Load Data to Accumulator</h3>
+<p>Syntax: <code>LDM d</code>. Byte: Dd. Cycles: 1. Carry: not
+changed.</p>
+<p>Loads the value d, 0 to 15, into A.</p>
+<p>Example: <code>LDM 5</code> is byte D5.</p>
+
+<h2 id="io-group">Details: RAM and Port Instructions</h2>
+
+<p>All of these are one byte and take 1 cycle. Before you use them, pick
+the bank with <a href="#DCL">DCL</a>, if it is not already set, and the
+character or port with <a href="#SRC">SRC</a>.</p>
+
+<h3 id="WRM">WRM: Write Main Memory</h3>
+<p>Byte: E0. Carry: not changed.</p>
+<p>Writes A into the selected RAM character.</p>
+<p>Example: <code>SRC P1</code> then <code>WRM</code> stores A at the
+address in P1.</p>
+
+<h3 id="WMP">WMP: Write RAM Port</h3>
+<p>Byte: E1. Carry: not changed.</p>
+<p>Writes A to the 4-bit output port of the selected RAM chip. Each 4002
+RAM chip has one output port. Real systems used these for things like
+lights and printer hammers.</p>
+
+<h3 id="WRR">WRR: Write ROM Port</h3>
+<p>Byte: E2. Carry: not changed.</p>
+<p>Writes A to the I/O port of the selected ROM chip, given by the high
+nibble of the last SRC address. With the emulator's
+<code>--console</code> option, two WRR writes to the console port make
+one printed character, high nibble first.</p>
+
+<h3 id="WPM">WPM: Write Program Memory</h3>
+<p>Byte: E3. Carry: not changed.</p>
+<p>On a real system, this wrote to program RAM through extra 4008 and
+4009 chips, which let development systems load programs. This emulator
+does not have those chips, so WPM does nothing.</p>
+
+<h3 id="WRn">WR0, WR1, WR2 and WR3: Write Status Character</h3>
+<p>Bytes: E4, E5, E6 and E7. Carry: not changed.</p>
+<p>Writes A into status character 0, 1, 2 or 3 of the selected RAM
+register. Each RAM register has these 4 extra characters besides its 16
+main ones. Calculators kept things like the sign and decimal point
+there. Only the chip and register parts of the SRC address matter. The
+character part is ignored.</p>
+
+<h3 id="SBM">SBM: Subtract Main Memory</h3>
+<p>Byte: E8. Carry: set if no borrow, cleared if there was a
+borrow.</p>
+<p>A becomes A minus the selected RAM character minus the borrow. The
+carry works backwards, exactly as for <a href="#SUB">SUB</a>.</p>
+
+<h3 id="RDM">RDM: Read Main Memory</h3>
+<p>Byte: E9. Carry: not changed.</p>
+<p>Reads the selected RAM character into A.</p>
+
+<h3 id="RDR">RDR: Read ROM Port</h3>
+<p>Byte: EA. Carry: not changed.</p>
+<p>Reads the I/O port of the selected ROM chip into A. In the emulator,
+set the value a port returns with <code>--rom-in PORT=VALUE</code>, or
+with the debugger's <code>in</code> command.</p>
+
+<h3 id="ADM">ADM: Add Main Memory</h3>
+<p>Byte: EB. Carry: set if the sum is more than 15, otherwise
+cleared.</p>
+<p>A becomes A plus the selected RAM character plus C. Follow it with
+<a href="#DAA">DAA</a> to add decimal digits.</p>
+
+<h3 id="RDn">RD0, RD1, RD2 and RD3: Read Status Character</h3>
+<p>Bytes: EC, ED, EE and EF. Carry: not changed.</p>
+<p>Reads status character 0, 1, 2 or 3 of the selected RAM register into
+A.</p>
+
+<h2 id="acc-group">Details: Accumulator Instructions</h2>
+
+<p>All of these are one byte, take 1 cycle and have no operand.</p>
+
+<h3 id="CLB">CLB: Clear Both</h3>
+<p>Byte: F0. Sets A to 0 and C to 0.</p>
+
+<h3 id="CLC">CLC: Clear Carry</h3>
+<p>Byte: F1. Sets C to 0. A is not changed. Use it before the first
+ADD, ADM, SUB or SBM of a calculation.</p>
+
+<h3 id="IAC">IAC: Increment Accumulator</h3>
+<p>Byte: F2. Adds 1 to A. If A was 15, it wraps to 0 and C is set.
+Otherwise C is cleared.</p>
+
+<h3 id="CMC">CMC: Complement Carry</h3>
+<p>Byte: F3. Flips C, from 0 to 1 or from 1 to 0. Useful between the
+steps of a multi-digit subtraction.</p>
+
+<h3 id="CMA">CMA: Complement Accumulator</h3>
+<p>Byte: F4. Flips every bit of A, so A becomes 15 minus A. For example,
+5 becomes 10. C is not changed.</p>
+
+<h3 id="RAL">RAL: Rotate Accumulator Left</h3>
+<p>Byte: F5. Shifts the bits of A one place left. The old C goes into
+the lowest bit, and the old highest bit of A goes into C. Rotating left
+doubles a number, with the carry as a fifth bit.</p>
+<p>Example: A at binary 1001 and C at 0 gives A at binary 0010 and C at
+1.</p>
+
+<h3 id="RAR">RAR: Rotate Accumulator Right</h3>
+<p>Byte: F6. Shifts the bits of A one place right. The old C goes into
+the highest bit, and the old lowest bit of A goes into C.</p>
+<p>Example: A at binary 1001 and C at 1 gives A at binary 1100 and C at
+1.</p>
+
+<h3 id="TCC">TCC: Transmit Carry and Clear</h3>
+<p>Byte: F7. Sets A to the value of C, 0 or 1, then sets C to 0. Use it
+to save a final carry as a digit.</p>
+
+<h3 id="DAC">DAC: Decrement Accumulator</h3>
+<p>Byte: F8. Subtracts 1 from A. If A was 0, it wraps to 15 and C is
+cleared, meaning there was a borrow. Otherwise C is set. The 4004 has no
+instruction to take 1 from a register, so programs use LD, DAC, then
+XCH.</p>
+
+<h3 id="TCS">TCS: Transfer Carry Subtract</h3>
+<p>Byte: F9. Sets A to 10 if C is 1, or to 9 if C is 0, then sets C to
+0. It exists to help decimal subtraction. It gives the value to subtract
+a digit from when working out the tens' complement, which turns a
+subtraction into an addition.</p>
+
+<h3 id="STC">STC: Set Carry</h3>
+<p>Byte: FA. Sets C to 1. A is not changed.</p>
+
+<h3 id="DAA">DAA: Decimal Adjust Accumulator</h3>
+<p>Byte: FB.</p>
+<p>Fixes up A after adding two decimal digits. If A is more than 9, or C
+is 1, it adds 6 to A. If that goes past 15, C is set. DAA never clears
+C. If C was already 1, it stays 1.</p>
+<p>Example: 6 plus 8 with ADM gives A at 14 and C at 0. DAA adds 6 to
+get 20, which leaves A at 4 and C at 1. That is 14 in decimal. Lesson 3
+explains this step by step.</p>
+
+<h3 id="KBP">KBP: Keyboard Process</h3>
+<p>Byte: FC. C is not changed.</p>
+<p>Turns a keyboard bit pattern into a key number. A keyboard row where
+exactly one key is pressed gives a value with exactly one bit set. KBP
+turns that into the number of the key. If no key or more than one key is
+pressed, the result is 15, meaning error.</p>
+<table>
+<caption>KBP results</caption>
+<thead>
+<tr><th scope="col">A before</th><th scope="col">A after</th></tr>
+</thead>
+<tbody>
+<tr><td>0, no key</td><td>0</td></tr>
+<tr><td>1, binary 0001</td><td>1</td></tr>
+<tr><td>2, binary 0010</td><td>2</td></tr>
+<tr><td>4, binary 0100</td><td>3</td></tr>
+<tr><td>8, binary 1000</td><td>4</td></tr>
+<tr><td>Anything else</td><td>15</td></tr>
+</tbody>
+</table>
+
+<h3 id="DCL">DCL: Designate Command Line</h3>
+<p>Byte: FD. C is not changed.</p>
+<p>Selects a RAM bank using the low 3 bits of A, so banks 0 to 7. Every
+RAM instruction after it uses that bank, until the next DCL. On a real
+board the value drove the chip's command lines. This emulator assumes a
+decoder that turns each value into one bank. The chip starts with bank
+0 selected.</p>
+<p>Example: <code>LDM 2</code> then <code>DCL</code> selects bank 2.</p>
+
+<h3 id="unused">FE and FF: Unused</h3>
+<p>These two bytes are not instructions. If the emulator tries to run
+one, it stops with an illegal opcode error. That usually means the
+program has jumped into its own data.</p>
+
+<h2 id="pseudo">Extras This Assembler Understands</h2>
+
+<h3 id="jump-names">Friendly jump names</h3>
+<p>These are not new instructions. Each one is a <a href="#JCN">JCN</a>
+with a fixed condition, and assembles to the same two bytes.</p>
+<table>
+<caption>Jump aliases</caption>
+<thead>
+<tr><th scope="col">Write</th><th scope="col">Same as</th>
+<th scope="col">Jumps when</th></tr>
+</thead>
+<tbody>
+<tr><td>JZ addr</td><td>JCN 4, addr</td><td>A is 0</td></tr>
+<tr><td>JNZ addr</td><td>JCN 12, addr</td><td>A is not 0</td></tr>
+<tr><td>JC addr</td><td>JCN 2, addr</td><td>C is 1</td></tr>
+<tr><td>JNC addr</td><td>JCN 10, addr</td><td>C is 0</td></tr>
+<tr><td>JT addr</td><td>JCN 1, addr</td><td>The TEST pin is 0</td></tr>
+<tr><td>JNT addr</td><td>JCN 9, addr</td><td>The TEST pin is 1</td></tr>
+</tbody>
+</table>
+
+<h3 id="directives">Directives</h3>
+<p>Directives tell the assembler what to do. They do not turn into
+instructions.</p>
+<table>
+<caption>Assembler directives</caption>
+<thead>
+<tr><th scope="col">Directive</th><th scope="col">Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>ORG address</td><td>Put the following code at this
+address.</td></tr>
+<tr><td>DB values</td><td>Put bytes here. Values can be numbers,
+characters in single quotes, or text in double quotes. DATA and BYTE
+mean the same.</td></tr>
+<tr><td>NAME EQU value</td><td>Give a name to a number. NAME = value
+means the same.</td></tr>
+<tr><td>END</td><td>Stop assembling. Anything after it is
+ignored.</td></tr>
+</tbody>
+</table>
+<p>The <a href="../README.md">README</a> lists every way to write
+numbers, registers and expressions.</p>
+
+<nav class="lessons" aria-label="Lessons">
+<p><a href="index.html">All lessons</a>.
+<a href="#summary">Back to the summary tables</a>.</p>
+</nav>
+
+</body>
+</html>
