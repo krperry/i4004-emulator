@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adding Like a Calculator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#what">Skip to the lesson</a>
+
+<h1>Lesson 3: Adding Like a Calculator</h1>
+
+<p>The 4004 was designed for one job: to be the brain of a desk
+calculator. In this lesson you will walk through
+<code>examples/bcd_add.asm</code>, a program that does exactly what that
+calculator did. It adds two 8-digit numbers in decimal, one digit at a
+time, and prints the answer. Along the way you meet RAM, subroutines,
+counting loops, and <code>DAA</code>, the instruction that makes
+decimal adding work.</p>
+
+<p>Topics covered in this lesson</p>
+<ul>
+<li>Binary coded decimal, or BCD, and why calculators use it</li>
+<li>Storing digits in RAM, and choosing a RAM bank with
+<code>DCL</code></li>
+<li>Calling a subroutine with <code>JMS</code> and returning with
+<code>BBL</code></li>
+<li>A counting loop with <code>ISZ</code></li>
+<li>Adding with carry using <code>ADM</code>, then fixing the answer
+with <code>DAA</code></li>
+<li>Turning a digit into a printable character</li>
+</ul>
+
+<p>This lesson builds on the last one. If you have not done
+<a href="hello.html">Hello, World on a 4-Bit Chip</a> yet, do that
+first.</p>
+
+<h2 id="what">What the Program Does</h2>
+
+<p>Run it:</p>
+
+<pre><code>python -m i4004 run examples/bcd_add.asm --console --accessible</code></pre>
+
+<p>The first line you hear is:</p>
+
+<pre><code>Output: 058598744</code></pre>
+
+<p>The program added 27,182,818 and 31,415,926. The answer is
+58,598,744. It printed 9 digits, not 8, because adding two 8-digit
+numbers can give a 9-digit answer. Here that extra digit is 0.</p>
+
+<p>After the output, the emulator reports what is left in RAM. Listen
+for these two lines:</p>
+
+<pre tabindex="0"><code>RAM bank 0, chip 0, register 0. Characters: 4, 4, 7, 8, 9, 5, 8, 5,
+then 8 zeros.
+RAM bank 0, chip 0, register 1. Characters: 6, 2, 9, 5, 1, 4, 1, 3,
+then 8 zeros.</code></pre>
+
+<p>Register 0 holds the answer, and register 1 still holds the second
+number. Read register 0 backwards and you get 5, 8, 5, 9, 8, 7, 4, 4,
+which is the answer. The next section explains why it is stored
+backwards.</p>
+
+<h2 id="bcd">Binary Coded Decimal</h2>
+
+<p>A calculator shows decimal digits, 0 to 9. One easy way to store a
+decimal number is to keep each digit in its own nibble. This is called
+<em>binary coded decimal</em>, or BCD. The number 2,718 is stored as four
+nibbles: 2, 7, 1 and 8. A nibble can hold up to 15, but in BCD only 0 to
+9 are used.</p>
+
+<p>BCD suits the 4004 perfectly. One nibble is one digit, and one RAM
+character is one nibble. A RAM register has 16 characters, so it can
+hold a 16-digit number. The Busicom calculator kept its numbers exactly
+like this.</p>
+
+<p>The program stores the <em>lowest</em> digit first, in character 0.
+That is because you add numbers starting from the right, the ones
+column, and carry to the left. Storing the ones digit first means the
+program can start at character 0 and simply count up.</p>
+
+<p>Here is the plan for RAM. Everything is in bank 0, chip 0:</p>
+
+<table>
+<caption>How the program uses RAM</caption>
+<thead>
+<tr><th scope="col">RAM register</th><th scope="col">Holds</th>
+<th scope="col">SRC address of character 0</th></tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>The first number, A. The answer is written over it.
+Character 8 gets the final carry.</td><td>hex 00</td></tr>
+<tr><td>1</td><td>The second number, B</td><td>hex 10</td></tr>
+</tbody>
+</table>
+
+<p>Remember from <a href="meet_the_4004.html#ram">Lesson 1</a> that the
+low nibble of an <code>SRC</code> address picks the character, and the
+two bits above it pick the RAM register. So hex 00 is register 0,
+character 0, and hex 10 is register 1, character 0.</p>
+
+<h2 id="source">The Whole Program</h2>
+
+<p>Here is the listing, without the comment lines. Get it yourself
+with:</p>
+
+<pre><code>python -m i4004 asm examples/bcd_add.asm --listing --accessible</code></pre>
+
+<pre tabindex="0"><code>000  D0              LDM  0
+001  FD              DCL
+002  20 48           FIM  P0, numA
+004  22 00           FIM  P1, 0x00
+006  50 3B           JMS  load8
+008  20 50           FIM  P0, numB
+00A  22 10           FIM  P1, 0x10
+00C  50 3B           JMS  load8
+00E  F1              CLC
+00F  22 00           FIM  P1, 0x00
+011  24 10           FIM  P2, 0x10
+013  D8              LDM  8
+014  B6              XCH  R6
+015  25      addlp:  SRC  P2
+016  E9              RDM
+017  23              SRC  P1
+018  EB              ADM
+019  FB              DAA
+01A  E0              WRM
+01B  63              INC  R3
+01C  65              INC  R5
+01D  76 15           ISZ  R6, addlp
+01F  23              SRC  P1
+020  F7              TCC
+021  E0              WRM
+022  28 00           FIM  P4, 0x00
+024  D7              LDM  7
+025  B7              XCH  R7
+026  D8              LDM  8
+027  B3              XCH  R3
+028  23      prlp:   SRC  P1
+029  E9              RDM
+02A  BA              XCH  R10
+02B  29              SRC  P4
+02C  D3              LDM  3
+02D  E2              WRR
+02E  AA              LD   R10
+02F  E2              WRR
+030  A3              LD   R3
+031  F8              DAC
+032  B3              XCH  R3
+033  77 28           ISZ  R7, prlp
+035  D0              LDM  0
+036  E2              WRR
+037  DA              LDM  10
+038  E2              WRR
+039  40 39   done:   JUN  done
+03B  D8      load8:  LDM  8
+03C  B6              XCH  R6
+03D  3A      ldlp:   FIN  P5
+03E  23              SRC  P1
+03F  AB              LD   R11
+040  E0              WRM
+041  71 44           ISZ  R1, nowrap
+043  60              INC  R0
+044  63      nowrap: INC  R3
+045  76 3D           ISZ  R6, ldlp
+047  C0              BBL  0
+048  08 01 08 02 08 01 07 02   numA: DB 8,1,8,2,8,1,7,2
+050  06 02 09 05 01 04 01 03   numB: DB 6,2,9,5,1,4,1,3</code></pre>
+
+<p>The program is 88 bytes and takes 400 instruction cycles, about 4.3
+thousandths of a second on a real 4004. It has five parts: pick the RAM
+bank, load the two numbers, add them, print the answer, and a subroutine
+that does the loading. The subroutine is at the end of the program, but
+it runs during part 2, so it is explained there.</p>
+
+<h2 id="bank">Part 1: Choosing a RAM Bank</h2>
+
+<h3 id="l000">Address 000: LDM 0</h3>
+
+<p>Byte: hex D0. D means <code>LDM</code>, load immediate, and 0 is the
+value. The accumulator becomes 0.</p>
+
+<h3 id="l001">Address 001: DCL</h3>
+
+<p>Byte: hex FD.</p>
+
+<p><code>DCL</code> means designate command line. It picks the RAM bank
+from the value in the accumulator, so this picks bank 0. A
+<code>DCL</code> instruction has no operand of its own. That is why the
+bank number had to be loaded into the accumulator first. Many 4004
+instructions work this way, using the accumulator as their input.</p>
+
+<p>Bank 0 is already selected when the chip starts, so strictly these
+two lines are not needed. Good programs set it anyway, so they do not
+depend on what happened before.</p>
+
+<h2 id="load">Part 2: Loading the Two Numbers</h2>
+
+<p>The two numbers are stored in ROM, at the labels <code>numA</code>
+and <code>numB</code>. The calculation has to happen in RAM, so first
+the program copies each number from ROM into RAM. Both copies do the
+same job, so the program uses one subroutine called <code>load8</code>
+for both. It sets up two pointers, then calls the subroutine.</p>
+
+<h3 id="l002">Address 002: FIM P0, numA</h3>
+
+<p>Bytes: hex 20, then hex 48.</p>
+
+<p>This puts the ROM address of the first number, hex 048, into pair P0.
+Only the low 8 bits fit, but that is fine, because <code>FIN</code>
+reads from the current page anyway. P0 is the ROM pointer. As in the
+last lesson, it has to be P0, because <code>FIN</code> always uses
+P0.</p>
+
+<h3 id="l004">Address 004: FIM P1, 0x00</h3>
+
+<p>Bytes: hex 22, then hex 00.</p>
+
+<p>This puts hex 00 into pair P1. P1 is the RAM pointer, and hex 00 means
+RAM register 0, character 0. That is where the first number goes.</p>
+
+<h3 id="l006">Address 006: JMS load8</h3>
+
+<p>Bytes: hex 50, then hex 3B.</p>
+
+<p><code>JMS</code> means jump to subroutine. The 5 means
+<code>JMS</code>, and the next three hex digits, 0, 3 and B, are the
+address of <code>load8</code>. Before it jumps, the chip saves the
+address of the next instruction, hex 008, so it knows where to come back
+to.</p>
+
+<p>The 4004 keeps these return addresses inside the chip, in a
+<em>stack</em> with room for only three of them. A subroutine can call
+another subroutine, and that one can call a third, but no deeper. If a
+program goes one level deeper, the oldest return address is lost. The
+emulator copies that behaviour exactly.</p>
+
+<p>Now jump ahead to the subroutine, which runs next.</p>
+
+<h3 id="l03b">Address 03B: load8: LDM 8</h3>
+
+<p>Byte: hex D8. The accumulator becomes 8.</p>
+
+<h3 id="l03c">Address 03C: XCH R6</h3>
+
+<p>Byte: hex B6.</p>
+
+<p><code>XCH</code> means exchange. It swaps the accumulator with R6, so
+R6 becomes 8. R6 is the loop counter. There is no instruction that loads
+a number straight into a single register, so <code>LDM</code> followed
+by <code>XCH</code> is the usual way to do it.</p>
+
+<p>Why 8, when the loop should run 8 times? The loop is counted by
+<code>ISZ</code>, which counts <em>up</em> and stops when the register
+wraps round to 0. Starting at 8, the counter goes 9, 10, 11, 12, 13, 14,
+15, and then 0. That is 8 steps. To loop some number of times, start the
+counter at 16 minus that number.</p>
+
+<h3 id="l03d">Address 03D: ldlp: FIN P5</h3>
+
+<p>Byte: hex 3A.</p>
+
+<p>This reads the ROM byte that P0 points at, and puts it in pair P5,
+which is R10 and R11. The first time round, P0 is hex 48, and the byte
+there is hex 08, the lowest digit of 27,182,818. So R10 becomes 0 and
+R11 becomes 8. The digit is in R11.</p>
+
+<h3 id="l03e">Address 03E: SRC P1</h3>
+
+<p>Byte: hex 23.</p>
+
+<p>This sends the RAM address in P1, so the next RAM instruction will
+use register 0, character 0.</p>
+
+<h3 id="l03f">Address 03F: LD R11</h3>
+
+<p>Byte: hex AB. This copies the digit from R11 into the
+accumulator.</p>
+
+<h3 id="l040">Address 040: WRM</h3>
+
+<p>Byte: hex E0.</p>
+
+<p><code>WRM</code> means write memory. It writes the accumulator into
+the RAM character chosen by the last <code>SRC</code>. The digit 8 is
+now in RAM.</p>
+
+<h3 id="l041">Address 041: ISZ R1, nowrap</h3>
+
+<p>Bytes: hex 71, then hex 44.</p>
+
+<p>This moves the ROM pointer on to the next digit, by adding 1 to R1.
+If R1 did not wrap round to 0, it jumps to <code>nowrap</code> and skips
+the next line. This is the same two-register counting trick you saw in
+the last lesson.</p>
+
+<h3 id="l043">Address 043: INC R0</h3>
+
+<p>Byte: hex 60.</p>
+
+<p>The program only gets here if R1 wrapped from 15 to 0, so it carries
+1 into R0. The first number starts at hex 48, so this happens on the
+eighth digit, when the pointer goes from hex 4F to hex 50.</p>
+
+<div class="note">
+<p><strong>A real bug.</strong> The first version of this program did
+not have this <code>ISZ</code> and <code>INC</code> pair. It just used
+<code>INC R1</code>. It printed nonsense. In that version the second number
+started at hex 4E, so after two digits its pointer went from hex 4F back
+to hex 40, not on to hex 50, and read the wrong bytes. The fix is these two
+lines. Bugs like this, where a value quietly wraps round, are very
+common on small chips. When something goes wrong, a trace is the best
+way to find it.</p>
+</div>
+
+<h3 id="l044">Address 044: nowrap: INC R3</h3>
+
+<p>Byte: hex 63.</p>
+
+<p>This moves the RAM pointer on to the next character, by adding 1 to
+R3, the low nibble of P1. There is no wrap to worry about, because it
+only goes from 0 to 8.</p>
+
+<h3 id="l045">Address 045: ISZ R6, ldlp</h3>
+
+<p>Bytes: hex 76, then hex 3D.</p>
+
+<p>This counts the loop. It adds 1 to R6, and jumps back to
+<code>ldlp</code> unless R6 wrapped to 0. After 8 digits, R6 wraps and
+the loop ends.</p>
+
+<h3 id="l047">Address 047: BBL 0</h3>
+
+<p>Byte: hex C0.</p>
+
+<p><code>BBL</code> means branch back and load. It returns from the
+subroutine, to the address saved by <code>JMS</code>, which is hex 008.
+It also loads its operand, here 0, into the accumulator. Subroutines
+often used that value to report success or failure. This one does not
+need to, so it returns 0.</p>
+
+<h3 id="l008">Addresses 008 to 00C: the second number</h3>
+
+<p>Back in the main program, these three lines do the same thing again
+for the second number:</p>
+
+<pre><code>008  20 50   FIM  P0, numB
+00A  22 10   FIM  P1, 0x10
+00C  50 3B   JMS  load8</code></pre>
+
+<p>The ROM pointer is now <code>numB</code>, hex 050. The RAM pointer is
+hex 10, which is RAM register 1, character 0. Then the same subroutine
+copies it in. This time the subroutine returns to hex 00E. Reusing one
+piece of code with different pointers is exactly what subroutines are
+for.</p>
+
+<h2 id="add">Part 3: Adding the Numbers</h2>
+
+<h3 id="l00e">Address 00E: CLC</h3>
+
+<p>Byte: hex F1.</p>
+
+<p><code>CLC</code> means clear carry. The first column of an addition
+has nothing carried into it, so the carry must start at 0.</p>
+
+<h3 id="l00f">Address 00F: FIM P1, 0x00</h3>
+
+<p>Bytes: hex 22, then hex 00. P1 points at RAM register 0, character 0.
+That is the first number, which is also where the answer will go.</p>
+
+<h3 id="l011">Address 011: FIM P2, 0x10</h3>
+
+<p>Bytes: hex 24, then hex 10. P2 points at RAM register 1, character 0,
+the second number.</p>
+
+<h3 id="l013">Addresses 013 and 014: LDM 8, then XCH R6</h3>
+
+<p>Bytes: hex D8, then hex B6. As before, this sets R6 to 8 so the loop
+runs 8 times, once for each digit.</p>
+
+<h3 id="l015">Address 015: addlp: SRC P2</h3>
+
+<p>Byte: hex 25. This selects the current digit of the second
+number.</p>
+
+<h3 id="l016">Address 016: RDM</h3>
+
+<p>Byte: hex E9.</p>
+
+<p><code>RDM</code> means read memory. It reads the selected RAM
+character into the accumulator. The first time round, that is 6, the
+lowest digit of 31,415,926.</p>
+
+<h3 id="l017">Address 017: SRC P1</h3>
+
+<p>Byte: hex 23. This selects the matching digit of the first
+number.</p>
+
+<h3 id="l018">Address 018: ADM</h3>
+
+<p>Byte: hex EB.</p>
+
+<p><code>ADM</code> means add memory. It adds the selected RAM character
+<em>and the carry</em> to the accumulator. The first time round, that is
+6, plus 8, plus a carry of 0, which makes 14.</p>
+
+<p>But 14 is not a decimal digit. The answer should be 4, carry 1. The
+chip added in binary, where a nibble can go up to 15. The next
+instruction fixes that.</p>
+
+<h3 id="l019">Address 019: DAA</h3>
+
+<p>Byte: hex FB.</p>
+
+<p><code>DAA</code> means decimal adjust accumulator. If the accumulator
+is more than 9, or the carry is already 1, it adds 6. If that addition
+goes past 15, it sets the carry.</p>
+
+<p>Why 6? A nibble counts to 16 before it carries, but a decimal digit
+should carry at 10. The difference is 6. Adding 6 pushes the value past
+15, so the real carry happens, and leaves the right digit behind. For
+our example, 14 plus 6 is 20. That is 16 plus 4, so the accumulator
+becomes 4 and the carry becomes 1. That is exactly 14 written in
+decimal: carry 1, digit 4.</p>
+
+<p>It works when <code>ADM</code> itself carried, too. For example, 9
+plus 9 is 18. <code>ADM</code> leaves 2 with carry 1. <code>DAA</code>
+sees the carry, adds 6, and gets 8 with the carry still 1. That is 18 in
+decimal.</p>
+
+<p>One unusual detail: <code>DAA</code> never clears the carry. If the
+carry was already 1, it stays 1. That is what the 9 plus 9 case
+needs.</p>
+
+<h3 id="l01a">Address 01A: WRM</h3>
+
+<p>Byte: hex E0. This writes the corrected digit back into the selected
+character. The selection is still the first number, so the answer
+replaces it, one digit at a time.</p>
+
+<h3 id="l01b">Addresses 01B and 01C: INC R3, then INC R5</h3>
+
+<p>Bytes: hex 63, then hex 65. These move both RAM pointers on to the
+next character. <code>INC</code> does not change the carry. That
+matters, because the carry from this digit has to survive until the
+next <code>ADM</code>.</p>
+
+<h3 id="l01d">Address 01D: ISZ R6, addlp</h3>
+
+<p>Bytes: hex 76, then hex 15. Count the loop, and go back to
+<code>addlp</code> for the next digit until all 8 are done.
+<code>ISZ</code> does not change the carry either.</p>
+
+<h3 id="l01f">Addresses 01F to 021: storing the last carry</h3>
+
+<pre><code>01F  23   SRC  P1
+020  F7   TCC
+021  E0   WRM</code></pre>
+
+<p>After 8 digits there may be a carry left over. With 99,999,999 plus 1,
+for example, the answer needs a ninth digit.</p>
+
+<p>R3 has been counted up to 8, so <code>SRC P1</code> now selects
+character 8 of register 0. <code>TCC</code> means transmit carry and
+clear. It puts the carry, 0 or 1, into the accumulator, and clears the
+carry. Then <code>WRM</code> writes it into character 8. In our example
+there is no final carry, so character 8 is 0. That is the leading zero
+in 058598744.</p>
+
+<h3 id="trace-add">Hearing the add loop</h3>
+
+<p>Run the program with a trace and listen to the first time round the
+add loop. It starts at step 133. Use your screen reader's find command
+to search for "Step 133".</p>
+
+<pre><code>python -m i4004 run examples/bcd_add.asm --console --accessible --trace --quiet</code></pre>
+
+<pre tabindex="0"><code>Step 133, at hex 015: SRC P2. Send register pair 2 as the RAM and ROM
+port address. Result: selected address now hex 10.
+Step 134, at hex 016: RDM. Read the selected RAM character into the
+accumulator. Result: accumulator now 6.
+Step 135, at hex 017: SRC P1. Send register pair 1 as the RAM and ROM
+port address. Result: selected address now hex 00.
+Step 136, at hex 018: ADM. Add the selected RAM character and the carry
+to the accumulator. Result: accumulator now 14.
+Step 137, at hex 019: DAA. Decimal adjust the accumulator. Result:
+accumulator now 4, carry now 1.
+Step 138, at hex 01A: WRM. Write the accumulator to the selected RAM
+character. Result: wrote 4 to RAM bank 0, chip 0, register 0, character
+0.</code></pre>
+
+<p>On the next time round, the digits are 2 and 1. With the carry, that
+makes 4. <code>ADM</code> uses up the carry, so the carry becomes 0.
+Then <code>DAA</code> reports no change, because 4 is already a good
+decimal digit.</p>
+
+<h2 id="print">Part 4: Printing the Answer</h2>
+
+<p>The answer has to be printed from the highest digit down, character
+8 to character 0. Each digit is a number from 0 to 9. To print it, the
+program turns it into the ASCII character for that digit. The ASCII
+characters 0 to 9 are hex 30 to hex 39. So the high nibble is always 3,
+and the low nibble is the digit itself. Nothing needs to be added or
+calculated.</p>
+
+<h3 id="l022">Address 022: FIM P4, 0x00</h3>
+
+<p>Bytes: hex 28, then hex 00. P4, which is R8 and R9, will be the
+<code>SRC</code> address for the console, ROM port 0.</p>
+
+<h3 id="l024">Addresses 024 and 025: LDM 7, then XCH R7</h3>
+
+<p>Bytes: hex D7, then hex B7. R7 is the loop counter. There are 9
+digits to print, and 16 minus 9 is 7.</p>
+
+<h3 id="l026">Addresses 026 and 027: LDM 8, then XCH R3</h3>
+
+<p>Bytes: hex D8, then hex B3. This sets R3 to 8, so P1 points at
+character 8 of register 0, the highest digit.</p>
+
+<h3 id="l028">Address 028: prlp: SRC P1</h3>
+
+<p>Byte: hex 23. This selects the current answer digit in RAM.</p>
+
+<h3 id="l029">Address 029: RDM</h3>
+
+<p>Byte: hex E9. This reads the digit into the accumulator.</p>
+
+<h3 id="l02a">Address 02A: XCH R10</h3>
+
+<p>Byte: hex BA.</p>
+
+<p>This saves the digit in R10. The accumulator is about to be needed
+for the 3, so the digit has to wait somewhere else. R10 is free now that
+the loading is finished.</p>
+
+<h3 id="l02b">Address 02B: SRC P4</h3>
+
+<p>Byte: hex 29. This selects ROM port 0, the console.</p>
+
+<p>A single <code>SRC</code> address chooses the RAM character
+<em>and</em> the ROM port at the same time. The program switches between
+P1 for RAM and P4 for the console. In this program, P1's high nibble is
+also 0, so <code>SRC P1</code> would happen to pick port 0 as well. But
+if the answer were in RAM register 1, P1 would hold hex 1 something, and
+the output would go to port 1 instead. Using a separate pair for the
+port makes the program say what it means, and keeps it working if the
+RAM layout changes.</p>
+
+<h3 id="l02c">Addresses 02C and 02D: LDM 3, then WRR</h3>
+
+<p>Bytes: hex D3, then hex E2. This sends the high nibble, 3.</p>
+
+<h3 id="l02e">Addresses 02E and 02F: LD R10, then WRR</h3>
+
+<p>Bytes: hex AA, then hex E2. This sends the digit as the low nibble.
+The console joins 3 and the digit, and prints a character from 0 to
+9.</p>
+
+<h3 id="l030">Addresses 030 to 032: LD R3, DAC, XCH R3</h3>
+
+<pre><code>030  A3   LD   R3
+031  F8   DAC
+032  B3   XCH  R3</code></pre>
+
+<p>The 4004 can add 1 to a register with <code>INC</code>, but it has no
+instruction to take 1 away from one. So the program copies R3 into the
+accumulator, uses <code>DAC</code>, decrement accumulator, and then
+swaps the result back into R3. This moves the pointer down one
+character.</p>
+
+<h3 id="l033">Address 033: ISZ R7, prlp</h3>
+
+<p>Bytes: hex 77, then hex 28. This counts the loop, and goes back for
+the next digit until all 9 are printed.</p>
+
+<h3 id="l035">Addresses 035 to 038: the new line</h3>
+
+<pre><code>035  D0   LDM  0
+036  E2   WRR
+037  DA   LDM  10
+038  E2   WRR</code></pre>
+
+<p>This sends 0 and then 10, which is hex 0A, the new line character.
+The last <code>SRC</code> was P4, so it still goes to the console.</p>
+
+<h3 id="l039">Address 039: done: JUN done</h3>
+
+<p>Bytes: hex 40, then hex 39. This is the jump to itself that parks the
+chip, just like in the hello program.</p>
+
+<h2 id="data">Part 5: The Numbers</h2>
+
+<h3 id="l048">Address 048: numA: DB 8,1,8,2,8,1,7,2</h3>
+
+<p>This is the first number, 27,182,818, written lowest digit first, so
+it reads backwards. Each digit takes a whole byte, even though it only
+needs a nibble. That keeps the loading loop simple, because
+<code>FIN</code> reads a byte, and the digit just lands in the low
+register, R11.</p>
+
+<h3 id="l050">Address 050: numB: DB 6,2,9,5,1,4,1,3</h3>
+
+<p>This is the second number, 31,415,926, also written backwards.</p>
+
+<p>You may have noticed the two numbers. 27,182,818 is the start of the
+number e, and 31,415,926 is the start of pi.</p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+<li>BCD keeps one decimal digit per nibble. That is how the 4004's
+calculators stored numbers.</li>
+<li>Digits are stored lowest first, so adding can start at character 0
+and count up.</li>
+<li><code>DCL</code> picks a RAM bank. <code>SRC</code> picks the
+character. <code>RDM</code> and <code>WRM</code> read and write it.</li>
+<li><code>JMS</code> calls a subroutine and <code>BBL</code> returns.
+The chip only remembers three return addresses.</li>
+<li>To loop some number of times with <code>ISZ</code>, start the
+counter at 16 minus that number.</li>
+<li><code>ADM</code> adds in binary. <code>DAA</code> then adds 6 when
+needed to turn the result into a decimal digit and a carry.</li>
+<li>A digit d prints as the ASCII character hex 3d, so the program sends
+3 and then the digit.</li>
+</ul>
+
+<h2 id="exercises">Exercises</h2>
+<ol>
+<li>Change the numbers so the program adds 99,999,999 and 1. Remember
+to write the digits backwards. What does it print? Which line put the 1
+at the front?</li>
+<li>Delete the <code>DAA</code> line and run the program. Some of the
+printed characters are no longer digits. Work out why. Hint: what
+ASCII character is hex 3E?</li>
+<li>Count the instruction cycles for one time round the add loop, from
+<code>addlp</code> to <code>ISZ R6, addlp</code>. Remember that
+<code>ISZ</code> is a two-byte instruction. How long is that on a real
+4004?</li>
+<li>Change the program so the answer goes into RAM register 2, and both
+original numbers are kept. You will need a third pointer. Which
+register pairs are still free?</li>
+<li>Harder: make the program skip the leading zero, so it prints
+58598744. Hint: before the print loop, read character 8 and decide
+where to start.</li>
+</ol>
+
+<nav class="lessons" aria-label="Lessons">
+<p><a href="index.html">All lessons</a>.
+Previous lesson: <a href="hello.html">Hello, World on a 4-Bit
+Chip</a>.</p>
+</nav>
+
+</body>
+</html>

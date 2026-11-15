@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hello World on the 4004</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#what">Skip to the lesson</a>
+
+<h1>Lesson 2: Hello, World on a 4-Bit Chip</h1>
+
+<p>Almost every programmer's first program makes the computer say hello.
+On a modern computer that takes one line. On the 4004 it takes a little
+more thought, because the chip can only send out 4 bits at a time, and a
+letter needs 8. In this lesson you will walk through
+<code>examples/hello.asm</code> one line at a time. You will see the
+bytes each line becomes and what the chip does when it runs them.</p>
+
+<p>Topics covered in this lesson</p>
+<ul>
+<li>How text is stored as bytes</li>
+<li>How a 4-bit chip prints an 8-bit letter</li>
+<li>Loading a byte from ROM with <code>FIN</code></li>
+<li>Choosing a port with <code>SRC</code> and writing to it with
+<code>WRR</code></li>
+<li>Making decisions with <code>JCN</code></li>
+<li>Counting with <code>ISZ</code> and carrying into the next
+nibble</li>
+<li>Stopping a chip that has no stop instruction</li>
+</ul>
+
+<h2 id="what">What the Program Does</h2>
+
+<p>Run it first, so you know what you are aiming for:</p>
+
+<pre><code>python -m i4004 run examples/hello.asm --console --accessible</code></pre>
+
+<p>You will hear:</p>
+
+<pre><code>Output: HELLO, WORLD! THE 4004 TURNS 55 TODAY.</code></pre>
+
+<p>Then the emulator tells you the chip stopped at hex 015 after 453
+instruction cycles. That is about 4.9 thousandths of a second on a real
+4004.</p>
+
+<p>The program does three things. It picks the port to print on. It
+walks through a message stored in ROM, one byte at a time, sending each
+byte to the port. It stops when it reaches a byte of 0, which marks the
+end of the message.</p>
+
+<h2 id="letters">How Letters Become Bytes</h2>
+
+<p>Computers store each letter as a number, using a standard table called
+ASCII. In ASCII, capital H is 72, which is hex 48. Capital E is hex 45, a
+space is hex 20, and a new line is hex 0A. So the message is really just
+a list of bytes:</p>
+
+<pre><code>48 45 4C 4C 4F 2C 20 57 ...</code></pre>
+
+<p>That is H, E, L, L, O, comma, space, W, and so on.</p>
+
+<h2 id="fourbits">How a 4-Bit Chip Prints an 8-Bit Letter</h2>
+
+<p>The 4004's accumulator holds one nibble. Its <code>WRR</code>
+instruction writes that one nibble to a port. There is no way to send a
+whole byte at once.</p>
+
+<p>So the program sends every letter in two halves. First it sends the
+high nibble, then the low nibble. To print H, which is hex 48, it writes
+4 and then 8. The emulator's <code>--console</code> option makes ROM port
+0 act like a terminal that understands this. It holds on to the first
+nibble it gets, and when the second one arrives it joins them into a byte
+and prints that letter.</p>
+
+<p>Real 4004 systems did the same kind of thing. The Busicom calculator
+sent its printer and display data out through 4-bit ports, a piece at a
+time.</p>
+
+<h2 id="source">The Whole Program</h2>
+
+<p>Here is the listing the assembler makes. It shows the address and
+bytes for each line, followed by the source. The comment lines at the top
+of the file are left out.</p>
+
+<pre tabindex="0"><code>000  22 00   start:  FIM  P1, 0x00
+002  23              SRC  P1
+003  20 17           FIM  P0, msg
+005  34      loop:   FIN  P2
+006  A4              LD   R4
+007  1C 0C           JNZ  emit
+009  A5              LD   R5
+00A  14 15           JZ   done
+00C  A4      emit:   LD   R4
+00D  E2              WRR
+00E  A5              LD   R5
+00F  E2              WRR
+010  71 05           ISZ  R1, loop
+012  60              INC  R0
+013  40 05           JUN  loop
+015  40 15   done:   JUN  done
+017  48 45 4C ...   msg: DB "HELLO, WORLD! THE 4004 TURNS 55 TODAY.", 10, 0</code></pre>
+
+<p>To get the same listing yourself, type:</p>
+
+<pre><code>python -m i4004 asm examples/hello.asm --listing --accessible</code></pre>
+
+<p>The whole program, message included, is 63 bytes. Now let's go
+through it one line at a time. Each line has its own heading below.</p>
+
+<h2 id="setup">Part 1: Choosing the Port</h2>
+
+<h3 id="l000">Address 000: start: FIM P1, 0x00</h3>
+
+<p>Bytes: hex 22, then hex 00.</p>
+
+<p><code>FIM</code> means fetch immediate. It loads a whole byte into a
+register pair. This line puts hex 00 into pair P1, which means R2
+becomes 0 and R3 becomes 0. The label <code>start</code> just names this
+address. Nothing in the program jumps to it, but it makes the listing
+easier to read.</p>
+
+<p>How the bytes are built: the first byte, hex 22, is 0010 0010 in
+binary. The high nibble, 2, is the code for the <code>FIM</code> and
+<code>SRC</code> family. In the low nibble, the first three bits, 001,
+are the pair number, 1. The last bit is 0, which means
+<code>FIM</code>, not <code>SRC</code>. The second byte, hex 00, is the
+data to load.</p>
+
+<h3 id="l002">Address 002: SRC P1</h3>
+
+<p>Byte: hex 23.</p>
+
+<p><code>SRC</code> sends the byte in a register pair out as the address
+for the next RAM or port instruction. P1 holds hex 00. For a ROM port,
+the high nibble of the address is the port number, so this picks ROM
+port 0. That is the port the console listens on. The program never sends
+a different address, so every <code>WRR</code> after this goes to port
+0.</p>
+
+<p>Hex 23 is the same as the <code>FIM</code> byte above, except the last
+bit is 1. That one bit is the only difference between
+<code>FIM P1</code> and <code>SRC P1</code>.</p>
+
+<h3 id="l003">Address 003: FIM P0, msg</h3>
+
+<p>Bytes: hex 20, then hex 17.</p>
+
+<p>This loads the address of the message into pair P0. The label
+<code>msg</code> is at address hex 017, so R0 becomes 1 and R1 becomes 7.
+P0 is now a <em>pointer</em>. It holds the address of the next letter to
+print. The assembler worked out the 17 for us from the label. That is
+one of the main jobs of an assembler.</p>
+
+<p>Why P0? The <code>FIN</code> instruction coming up always takes its
+address from pair P0. You don't get to choose.</p>
+
+<h2 id="loop">Part 2: Fetching a Letter and Checking for the End</h2>
+
+<h3 id="l005">Address 005: loop: FIN P2</h3>
+
+<p>Byte: hex 34.</p>
+
+<p><code>FIN</code> means fetch indirect. It reads a byte from ROM, from
+the address held in P0, and puts it into the pair named in the
+instruction, here P2. The first time round, P0 is hex 17, so it reads the
+byte at address hex 017. That byte is hex 48, the letter H. So R4 becomes
+4 and R5 becomes 8.</p>
+
+<p><code>FIN</code> has only 8 bits of address in P0, so it reads from
+the current ROM page. This instruction is in page 0, so it can reach
+addresses hex 000 to hex 0FF. The message has to fit in that range.</p>
+
+<p>The label <code>loop</code> marks the top of the loop. The program
+comes back here for every letter. <code>FIN</code> takes two instruction
+cycles, because the chip has to make a second trip to ROM to fetch the
+data.</p>
+
+<h3 id="l006">Address 006: LD R4</h3>
+
+<p>Byte: hex A4. A means <code>LD</code>, load, and 4 means register
+R4.</p>
+
+<p>This copies R4, the high nibble of the letter, into the accumulator.
+The next instruction can only test the accumulator, so the value has to
+be there first.</p>
+
+<h3 id="l007">Address 007: JNZ emit</h3>
+
+<p>Bytes: hex 1C, then hex 0C.</p>
+
+<p><code>JNZ</code> means jump if not zero. If the accumulator is not 0,
+the program jumps to <code>emit</code> at address hex 00C. If it is 0,
+it goes on to the next line. For H, the accumulator is 4, so it
+jumps.</p>
+
+<p>The 4004 does not really have a <code>JNZ</code> instruction. This
+assembler accepts it as a friendly name for <code>JCN</code>, jump
+conditional, with a condition code. Here is how the bytes work. The 1 in
+hex 1C means <code>JCN</code>. The C, which is 1100 in binary, is the
+condition. Its bit for 4 means test whether the accumulator is zero. Its
+bit for 8 means turn the test around. So together they mean jump if the
+accumulator is not zero.</p>
+
+<p>The second byte, hex 0C, is only the low 8 bits of the address. The
+chip keeps the page part of its current address and just swaps in these
+8 bits. That is why <code>JCN</code> can only jump within the current
+page. The assembler checks this for you and gives an error if a target
+is too far away.</p>
+
+<h3 id="l009">Address 009: LD R5</h3>
+
+<p>Byte: hex A5.</p>
+
+<p>The program only gets here if the high nibble was 0. Now it loads the
+low nibble to check that one too.</p>
+
+<p>Why check both? The end of the message is marked with a byte of 0,
+so both nibbles must be 0. But some real characters also have a high
+nibble of 0. The new line character, hex 0A, is one of them. If the
+program only checked the high nibble, it would stop at the new line and
+never print it.</p>
+
+<h3 id="l00a">Address 00A: JZ done</h3>
+
+<p>Bytes: hex 14, then hex 15.</p>
+
+<p><code>JZ</code> means jump if zero. It is <code>JCN</code> with
+condition 4, which tests whether the accumulator is zero without turning
+the test around. If the low nibble is also 0, this is the end marker, so
+the program jumps to <code>done</code> at hex 015. Otherwise it falls
+through into <code>emit</code>, the next line.</p>
+
+<h2 id="emit">Part 3: Printing the Letter</h2>
+
+<h3 id="l00c">Address 00C: emit: LD R4</h3>
+
+<p>Byte: hex A4.</p>
+
+<p>This loads the high nibble into the accumulator again. When the
+program jumps here from address 007 the accumulator already holds it,
+but when it falls through from address 00A the accumulator holds the
+low nibble instead. Loading R4 here means both paths work.</p>
+
+<h3 id="l00d">Address 00D: WRR</h3>
+
+<p>Byte: hex E2.</p>
+
+<p><code>WRR</code> means write ROM port. It sends the accumulator to
+the port chosen by the last <code>SRC</code>, which is port 0. For H,
+it sends 4. The console holds on to it and waits for the second
+half.</p>
+
+<h3 id="l00e">Address 00E: LD R5</h3>
+
+<p>Byte: hex A5. This loads the low nibble, 8 for H, into the
+accumulator.</p>
+
+<h3 id="l00f">Address 00F: WRR</h3>
+
+<p>Byte: hex E2.</p>
+
+<p>This sends the low nibble. The console now has 4 and 8, joins them
+into hex 48, and prints H.</p>
+
+<h2 id="next">Part 4: Moving to the Next Letter</h2>
+
+<h3 id="l010">Address 010: ISZ R1, loop</h3>
+
+<p>Bytes: hex 71, then hex 05.</p>
+
+<p><code>ISZ</code> means increment and skip if zero. It adds 1 to R1,
+the low nibble of the pointer. If R1 is not 0 afterwards, it jumps to
+<code>loop</code> at hex 005 to print the next letter. If R1 has just
+wrapped round from 15 to 0, it does not jump, and the program carries on
+to the next line.</p>
+
+<p>The 7 in hex 71 means <code>ISZ</code>, and the 1 means register R1.
+Like <code>JCN</code>, the second byte is an address within the current
+page.</p>
+
+<h3 id="l012">Address 012: INC R0</h3>
+
+<p>Byte: hex 60.</p>
+
+<p>The program only reaches this line when R1 has wrapped from 15 back
+to 0. A register only holds 0 to 15, so on its own the pointer would go
+from hex 1F back to hex 10, and the program would print part of the
+message again. Adding 1 to R0, the high nibble, fixes that. Hex 1F
+becomes hex 20, just like 19 becomes 20 when you count in tens.</p>
+
+<p>This is how the 4004 counts past 15. It uses two 4-bit registers and
+carries from one to the other by hand.</p>
+
+<h3 id="l013">Address 013: JUN loop</h3>
+
+<p>Bytes: hex 40, then hex 05.</p>
+
+<p><code>JUN</code> means jump unconditional. It always jumps, and it
+can reach any address in all of ROM. The 4 means <code>JUN</code>. The
+remaining three hex digits, 0, 0 and 5, are the 12-bit address hex 005.
+After the carry, the program goes back to the top of the loop.</p>
+
+<h2 id="stop">Part 5: Stopping</h2>
+
+<h3 id="l015">Address 015: done: JUN done</h3>
+
+<p>Bytes: hex 40, then hex 15.</p>
+
+<p>This line jumps to itself, forever. The 4004 has no halt instruction.
+A real chip in a calculator never stops. When it has nothing to do, it
+loops. Programs written for testing used a jump to itself like this to
+park the chip.</p>
+
+<p>The emulator notices a jump to the same address, which can never go
+anywhere else, and stops the run there. That is why it reports that it
+stopped at hex 015.</p>
+
+<h2 id="data">Part 6: The Message</h2>
+
+<h3 id="l017">Address 017: msg: DB "HELLO, WORLD! THE 4004 TURNS 55
+TODAY.", 10, 0</h3>
+
+<p><code>DB</code> means define bytes. It is not an instruction for the
+chip. It tells the assembler to put these bytes straight into ROM. The
+text in quotes becomes one ASCII byte per character. Then 10, which is
+hex 0A, adds a new line, and 0 adds the end marker.</p>
+
+<p>That is 38 characters, plus the new line, plus the end marker, so 40
+bytes in all, at addresses hex 017 to hex 03E.</p>
+
+<p>The chip never runs these bytes as instructions, because the program
+always jumps around them. If it did run them by mistake, the H and E,
+hex 48 and hex 45, would be read as <code>JUN 0x845</code>, a jump to an
+empty part of ROM, and the program would go wild. In
+a 4004 program, data and code are just bytes in the same ROM.</p>
+
+<h2 id="follow">Following One Letter with a Trace</h2>
+
+<p>You can watch every instruction run with the trace option:</p>
+
+<pre><code>python -m i4004 run examples/hello.asm --console --accessible --trace --quiet</code></pre>
+
+<p>Here are the first ten steps, which print the H:</p>
+
+<pre tabindex="0"><code>Step 1, at hex 000: FIM P1, hex 00. Load hex 00 into register pair 1,
+registers 2 and 3. No change.
+Step 2, at hex 002: SRC P1. Send register pair 1 as the RAM and ROM port
+address. No change.
+Step 3, at hex 003: FIM P0, hex 17. Load hex 17 into register pair 0,
+registers 0 and 1. Result: R0 now 1, R1 now 7.
+Step 4, at hex 005: FIN P2. Fetch the ROM byte addressed by register
+pair 0 into register pair 2. Result: R4 now 4, R5 now 8.
+Step 5, at hex 006: LD R4. Copy register 4 into the accumulator. Result:
+accumulator now 4.
+Step 6, at hex 007: JCN 12, hex 00C. Jump to hex 00C if the accumulator
+is not zero. Result: jumped to hex 00C.
+Step 7, at hex 00C: LD R4. Copy register 4 into the accumulator. No
+change.
+Step 8, at hex 00D: WRR. Write the accumulator to the selected ROM
+output port. Result: wrote 4 to ROM port 0.
+Step 9, at hex 00E: LD R5. Copy register 5 into the accumulator. Result:
+accumulator now 8.
+Step 10, at hex 00F: WRR. Write the accumulator to the selected ROM
+output port. Result: wrote 8 to ROM port 0.</code></pre>
+
+<p>Steps 1 and 2 say no change. Registers start at 0, so loading 0 into
+them changes nothing you can hear. <code>SRC</code> also sent hex 00,
+which was already the selected address. Step 6 shows <code>JNZ</code>
+the way the chip sees it, <code>JCN 12</code>. The 12 is hex C.</p>
+
+<p>Further on, after the O in WORLD at address hex 01F, you can hear the
+carry from Part 4 happen:</p>
+
+<pre tabindex="0"><code>Step 75, at hex 010: ISZ R1, hex 005. Add 1 to register 1, then jump to
+hex 005 unless it became 0. Result: R1 now 0, did not jump.
+Step 76, at hex 012: INC R0. Add 1 to register 0. Result: R0 now 2.
+Step 77, at hex 013: JUN hex 005. Jump to hex 005. Result: jumped to hex
+005.
+Step 78, at hex 005: FIN P2. Fetch the ROM byte addressed by register
+pair 0 into register pair 2. Result: R4 now 5, R5 now 2.</code></pre>
+
+<p>The pointer went from hex 1F to hex 20, and the next byte fetched is
+hex 52, the R in WORLD.</p>
+
+<h2 id="debugger">Stepping Through It Yourself</h2>
+
+<p>The debugger lets you run one instruction at a time and ask questions
+in between:</p>
+
+<pre><code>python -m i4004 debug examples/hello.asm --console --accessible</code></pre>
+
+<p>At the <code>4004&gt;</code> prompt, type <code>s</code> and press
+Enter to step one instruction. Type <code>r</code> to hear the
+registers. Type <code>b done</code> to set a breakpoint at the
+<code>done</code> label, then <code>c</code> to run until it gets there.
+Type <code>h</code> for the full list and <code>q</code> to quit.</p>
+
+<h2 id="summary">Summary</h2>
+<ul>
+<li>Text is stored as ASCII bytes. H is hex 48.</li>
+<li>The 4004 prints a byte as two nibbles, high first, using
+<code>WRR</code> twice.</li>
+<li><code>SRC</code> picks the port. It only has to be done once if the
+port never changes.</li>
+<li><code>FIN</code> reads a byte from ROM at the address in P0. That
+makes P0 a pointer into the message.</li>
+<li><code>JCN</code>, and its friendly names <code>JZ</code> and
+<code>JNZ</code>, make decisions by testing the accumulator.</li>
+<li><code>ISZ</code> counts a register up and loops. When it wraps, the
+program carries into the next register with <code>INC</code>.</li>
+<li>The 4004 has no halt. A jump to itself parks the chip, and the
+emulator stops there.</li>
+</ul>
+
+<h2 id="exercises">Exercises</h2>
+<ol>
+<li>Change the message to say hello to you by name. Assemble and run it.
+Does the program need any other change? Why not?</li>
+<li>Make the message two lines long by putting a new line in the
+middle: <code>DB "HELLO, WORLD!", 10, "THE 4004 TURNS 55 TODAY.", 10,
+0</code>. Run it. Which part of the program makes sure the first new
+line is printed instead of being mistaken for the end?</li>
+<li>Remove the end marker, the <code>, 0</code>, and run the program.
+It still stops. Why? Hint: what is in ROM just after the message? Would
+you want to count on that in a real program?</li>
+<li>Change <code>FIM P1, 0x00</code> to <code>FIM P1, 0x10</code>. Run
+it with <code>--console 1</code> instead of <code>--console</code>. Why
+does that still work?</li>
+<li>Delete the <code>INC R0</code> line and run the program with
+<code>--max-cycles 2000</code> added, so it cannot run for long. Listen
+to the output. Can you explain exactly where it goes wrong?</li>
+<li>The message must end before address hex 100. Why? Which
+instruction makes that rule?</li>
+</ol>
+
+<nav class="lessons" aria-label="Lessons">
+<p><a href="index.html">All lessons</a>.
+Previous lesson: <a href="meet_the_4004.html">Meet the 4004</a>.
+Next lesson: <a href="bcd_add.html">Adding Like a Calculator</a>.</p>
+</nav>
+
+</body>
+</html>

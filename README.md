@@ -5,6 +5,13 @@ announced on 15 November 1971. This is a command-line emulator,
 assembler, disassembler and debugger for it, written in pure Python 3.10+
 with no dependencies.
 
+## Tutorial
+
+New to the 4004? Open [docs/index.html](docs/index.html) in a browser.
+It is a screen-reader-friendly tutorial that walks through both example
+programs line by line, showing what each line assembles to and what the
+chip does with it.
+
 ## Quick start
 
 ```

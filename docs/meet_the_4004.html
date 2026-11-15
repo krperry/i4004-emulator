@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meet the 4004</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#bits">Skip to the lesson</a>
+
+<h1>Lesson 1: Meet the 4004</h1>
+
+<p>Before you can read a 4004 program you need to know what the chip has
+inside it to work with. This lesson is a short tour. Nothing here needs
+to be memorised. You can come back to it while you read the other
+lessons.</p>
+
+<p>Topics covered in this lesson</p>
+<ul>
+<li>Bits, nibbles and hexadecimal</li>
+<li>The accumulator and the carry</li>
+<li>The 16 registers and the 8 register pairs</li>
+<li>Program memory, called ROM, and its pages</li>
+<li>Data memory, called RAM</li>
+<li>Input and output ports</li>
+<li>How one line of assembly becomes bytes</li>
+<li>Running the assembler and reading a listing</li>
+</ul>
+
+<h2 id="bits">Bits, Nibbles and Hexadecimal</h2>
+
+<p>A <em>bit</em> is a single 0 or 1. Four bits together are called a
+<em>nibble</em>. A nibble can hold 16 different values, from 0 to 15.
+The 4004 is a 4-bit chip, which means almost everything it does, it does
+one nibble at a time.</p>
+
+<p>Programmers usually write nibbles in <em>hexadecimal</em>, or hex for
+short. Hex counts to 15 using one symbol per value. It uses 0 to 9 like
+normal, then A for 10, B for 11, C for 12, D for 13, E for 14 and F for
+15. So one hex digit is exactly one nibble. That is why hex is so handy
+here.</p>
+
+<p>Two nibbles make a <em>byte</em>, which is written as two hex digits.
+For example, the byte hex 48 has a high nibble of 4 and a low nibble of
+8. As a normal number it is 4 times 16, plus 8, which is 72. In the
+assembly code, hex numbers are written with <code>0x</code> in front, as
+in <code>0x48</code>. The emulator's accessible output says
+<code>hex 48</code> instead.</p>
+
+<h2 id="accumulator">The Accumulator and the Carry</h2>
+
+<p>The <em>accumulator</em> is the chip's main working nibble. Almost
+every calculation goes through it. You load a value into the
+accumulator, do something to it, and store the answer somewhere
+else.</p>
+
+<p>The <em>carry</em> is a single bit that sits beside the accumulator.
+When an addition goes past 15, the extra 1 goes into the carry, just as
+you carry a 1 when you add numbers on paper. For example, 9 plus 8 is
+17. The accumulator can only hold 0 to 15, so it keeps 1 and the carry
+becomes 1. Together they mean 16 plus 1.</p>
+
+<h2 id="registers">The 16 Registers and the 8 Pairs</h2>
+
+<p>Besides the accumulator, the 4004 has 16 <em>registers</em>, named R0
+to R15. Each one holds one nibble. Think of them as 16 small boxes for
+keeping values close at hand.</p>
+
+<p>Some jobs need a whole byte, such as a memory address. For those, the
+registers are grouped into 8 <em>register pairs</em>, named P0 to P7.
+Pair P0 is R0 and R1, pair P1 is R2 and R3, and so on up to P7, which is
+R14 and R15. In a pair, the even register holds the high nibble and the
+odd register holds the low nibble. So if R0 is 1 and R1 is 7, pair P0
+holds the byte hex 17.</p>
+
+<h2 id="rom">Program Memory, or ROM</h2>
+
+<p>The program itself lives in <em>ROM</em>, which stands for read-only
+memory. On a real system this was a set of Intel 4001 chips. The 4004
+can reach 4,096 bytes of ROM, at addresses hex 000 to hex FFF.</p>
+
+<p>The chip keeps the address of the next instruction in its
+<em>program counter</em>. It reads the byte there, does what it says,
+and moves on to the next one.</p>
+
+<p>ROM is divided into <em>pages</em> of 256 bytes each. Page 0 is hex
+000 to hex 0FF, page 1 is hex 100 to hex 1FF, and so on. Pages matter
+because some instructions only have room for an 8-bit address. Those
+instructions can only jump, or read data, inside the current page. Both
+example programs fit in page 0, so you will not have to think about
+this much yet.</p>
+
+<h2 id="ram">Data Memory, or RAM</h2>
+
+<p>Values the program needs to change are kept in <em>RAM</em>, which was
+a set of Intel 4002 chips. The RAM is organised in levels, a bit like a
+street address:</p>
+
+<ul>
+<li>A <em>bank</em>. There are up to 8 banks. The <code>DCL</code>
+instruction picks which bank to use.</li>
+<li>A <em>chip</em> inside the bank, from 0 to 3.</li>
+<li>A <em>register</em> inside the chip, from 0 to 3. RAM registers are
+not the same as the 16 CPU registers. They are just rows of
+memory.</li>
+<li>A <em>character</em> inside the RAM register, from 0 to 15. Each
+character holds one nibble. A RAM register also has 4 extra
+<em>status characters</em>, which programs used for things like signs
+and decimal points.</li>
+</ul>
+
+<p>The 4004 does not put a RAM address inside each instruction. Instead
+you first send an address with the <code>SRC</code> instruction, short
+for send register control. Then the RAM instructions, such as
+<code>RDM</code> to read and <code>WRM</code> to write, use the address
+you sent. The address is one byte from a register pair. The top 2 bits
+pick the chip, the next 2 bits pick the register, and the low nibble
+picks the character.</p>
+
+<h2 id="ports">Input and Output Ports</h2>
+
+<p>The chip talks to the outside world, such as keyboards, printers and
+lights, through 4-bit <em>ports</em>. Each ROM chip has a port, and each
+RAM chip has an output port. <code>SRC</code> picks the port too. For a
+ROM port, the high nibble of the <code>SRC</code> address is the port
+number. <code>WRR</code> writes the accumulator to that ROM port, and
+<code>RDR</code> reads from it.</p>
+
+<p>A real 4004 had no screen. To let the example programs print text,
+the emulator can pretend a ROM port is wired to a terminal. You turn
+this on with the <code>--console</code> option. The next lesson explains
+exactly how a 4-bit port can print letters.</p>
+
+<h2 id="encoding">How One Line of Assembly Becomes Bytes</h2>
+
+<p>The chip only understands numbers. <em>Assembly language</em> gives
+each instruction a short name, called a <em>mnemonic</em>, so people can
+read it. The <em>assembler</em> turns each line into the numbers the
+chip runs, which are called <em>machine code</em>.</p>
+
+<p>Here is a simple example. This line loads the value 5 into the
+accumulator:</p>
+
+<pre><code>LDM 5</code></pre>
+
+<p>It becomes one byte, hex D5. The high nibble, D, means load
+immediate, which is <code>LDM</code>. The low nibble, 5, is the value.
+Most 4004 instructions follow this idea. The high nibble says what to
+do, and the low nibble says which register or what value.</p>
+
+<p>Some instructions need more room, such as a jump to a 12-bit address.
+Those take two bytes. For example, <code>JUN 0x123</code> becomes hex 41
+then hex 23. The 4 means jump unconditional, and the remaining three hex
+digits, 1, 2 and 3, are the address.</p>
+
+<p>A program line can also have three other things:</p>
+<ul>
+<li>A <em>label</em> at the start, ending in a colon, such as
+<code>loop:</code>. A label names an address so you can jump to it
+without working out the number yourself.</li>
+<li>A <em>comment</em>, starting with a semicolon. Everything after the
+semicolon is ignored by the assembler. It is there for people.</li>
+<li>A <em>directive</em>, which is an instruction to the assembler, not
+to the chip. <code>ORG 0</code> means start putting code at address 0.
+<code>DB</code> means put these data bytes here.</li>
+</ul>
+
+<p>Each one-byte instruction takes the real chip one <em>instruction
+cycle</em>, which is 10.8 millionths of a second. Two-byte instructions
+take two cycles. The emulator counts cycles and tells you how long a
+program would have taken on the real chip.</p>
+
+<h2 id="listing">Running the Assembler</h2>
+
+<p>You can ask the assembler for a <em>listing</em>, which shows every
+source line with its address and bytes. Try it:</p>
+
+<pre><code>python -m i4004 asm examples/hello.asm --listing --accessible</code></pre>
+
+<p>Lines sound like this:</p>
+
+<pre><code>Line 8, hex 000, bytes 22 00: start: FIM P1, 0x00</code></pre>
+
+<p>That means source line 8 was placed at address hex 000 and became
+the two bytes hex 22 and hex 00. The assembler also writes the bytes to
+a file called <code>examples/hello.bin</code>. That file is the program
+exactly as it would be burned into a ROM chip.</p>
+
+<p>You can go the other way too. The disassembler reads bytes and turns
+them back into assembly with a description of each instruction:</p>
+
+<pre><code>python -m i4004 disasm examples/hello.bin --accessible</code></pre>
+
+<h2 id="summary">Summary</h2>
+<ul>
+<li>A nibble is 4 bits and holds 0 to 15. One hex digit is one
+nibble.</li>
+<li>The accumulator is the chip's main working nibble. The carry catches
+anything past 15.</li>
+<li>There are 16 registers, R0 to R15, grouped into 8 pairs, P0 to
+P7.</li>
+<li>Programs live in ROM, which is split into 256-byte pages.</li>
+<li>Data lives in RAM, addressed by bank, chip, register and character.
+You pick the address with <code>SRC</code> first.</li>
+<li>Ports connect the chip to the world, also chosen with
+<code>SRC</code>.</li>
+<li>The assembler turns each line into one or two bytes. A listing shows
+you which bytes.</li>
+</ul>
+
+<h2 id="exercises">Exercises</h2>
+<ol>
+<li>What is hex 2A as a normal number? What about hex FF?</li>
+<li>Which two registers make up register pair P5?</li>
+<li>If R4 is 3 and R5 is 9, what byte does pair P2 hold?</li>
+<li>Assemble <code>examples/bcd_add.asm</code> with a listing. What
+bytes did the line <code>LDM 8</code> become? Does that match what this
+lesson said about <code>LDM</code>?</li>
+<li>An <code>SRC</code> address of hex 10 picks which RAM chip, which
+RAM register and which character?</li>
+</ol>
+
+<nav class="lessons" aria-label="Lessons">
+<p><a href="index.html">All lessons</a>.
+Next lesson: <a href="hello.html">Hello, World on a 4-Bit Chip</a>.</p>
+</nav>
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intel 4004 Lessons</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#lessons">Skip to the list of lessons</a>
+
+<h1>Intel 4004 Lessons</h1>
+
+<p>On 15 November 1971 Intel announced the 4004, the first microprocessor
+sold to the public. It was a whole computer brain on one chip, about the
+size of a fingernail, with 2,300 transistors. It ran at 740 thousand
+clock ticks a second and worked on just 4 bits at a time. It was built
+for a Japanese desk calculator, the Busicom 141-PF.</p>
+
+<p>These lessons teach you to program that chip. You will read two small
+programs written in 4004 assembly language. You will see how each line
+turns into the bytes the chip actually runs, and you will follow what
+the chip does with every one of those bytes. You run the programs on the
+emulator in this project, so you do not need a real 4004.</p>
+
+<h2 id="before">Before You Start</h2>
+
+<p>You need Python 3.10 or newer. Open a command prompt in the main
+folder of this project, the folder that has the <code>i4004</code> and
+<code>examples</code> folders in it. Check that the emulator works by
+typing this and pressing Enter:</p>
+
+<pre><code>python -m i4004 run examples/hello.asm --console --accessible</code></pre>
+
+<p>The first line you hear should be:</p>
+
+<pre><code>Output: HELLO, WORLD! THE 4004 TURNS 55 TODAY.</code></pre>
+
+<p>After that the emulator describes where the chip stopped and what was
+left in its registers.</p>
+
+<div class="note">
+<p><strong>A note on screen readers.</strong> Every command in these
+lessons can take the <code>--accessible</code> option, which you can
+shorten to <code>-a</code>. It makes the emulator talk in short, plain
+sentences instead of packed columns of hex. If you want it on all the
+time, set the environment variable <code>I4004_ACCESSIBLE</code> to
+<code>1</code>.</p>
+<p>Assembly code uses a lot of punctuation, such as commas, colons and
+semicolons, so set your screen reader to read all punctuation while you
+work through these lessons. In the walkthroughs, each instruction has
+its own heading. Use your screen reader's heading key to move from one
+instruction to the next.</p>
+</div>
+
+<h2 id="lessons">The Lessons</h2>
+
+<ol>
+<li><a href="meet_the_4004.html">Meet the 4004</a>. What is inside the
+chip: nibbles, hex, the accumulator, registers, ROM, RAM and ports. Also
+how an assembly line becomes bytes. Read this one first.</li>
+<li><a href="hello.html">Hello, World on a 4-Bit Chip</a>. A line-by-line
+walkthrough of <code>examples/hello.asm</code>. The 4004 can only send 4
+bits at a time, so how does it print letters? This lesson shows you.</li>
+<li><a href="bcd_add.html">Adding Like a Calculator</a>. A line-by-line
+walkthrough of <code>examples/bcd_add.asm</code>. This program adds two
+8-digit numbers in decimal, the job the 4004 was invented to do.</li>
+</ol>
+
+<h2 id="reference">Reference</h2>
+
+<p>The <code>README.md</code> file in the main folder lists every
+command-line option, the full assembly language syntax and the debugger
+commands. The lessons explain things as they come up, so you do not need
+to read the README first.</p>
+
+</body>
+</html>
